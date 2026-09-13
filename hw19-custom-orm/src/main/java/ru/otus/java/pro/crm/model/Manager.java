@@ -1,6 +1,9 @@
 package ru.otus.java.pro.crm.model;
 
+import ru.otus.java.pro.mapper.Id;
+
 public class Manager {
+    @Id
     private Long no;
     private String label;
     private String param1;

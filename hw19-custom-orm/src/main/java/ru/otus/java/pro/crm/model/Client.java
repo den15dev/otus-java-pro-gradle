@@ -1,6 +1,9 @@
 package ru.otus.java.pro.crm.model;
 
+import ru.otus.java.pro.mapper.Id;
+
 public class Client {
+    @Id
     private Long id;
     private String name;
 
