@@ -23,7 +23,10 @@ public class MyCache<K, V> implements HwCache<K, V> {
 
     @Override
     public V get(K key) {
-        return cache.get(key);
+        V value = cache.get(key);
+        listeners.forEach(listener -> listener.notify(key, value, "Read from Cache"));
+
+        return value;
     }
 
     @Override
