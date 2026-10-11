@@ -3,6 +3,7 @@ package ru.otus.java.pro.demo;
 import org.hibernate.cfg.Configuration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ru.otus.java.pro.core.cache.MyCache;
 import ru.otus.java.pro.core.repository.DataTemplateHibernate;
 import ru.otus.java.pro.core.repository.HibernateUtils;
 import ru.otus.java.pro.core.sessionmanager.TransactionManagerHibernate;
@@ -10,6 +11,8 @@ import ru.otus.java.pro.crm.dbmigrations.MigrationsExecutorFlyway;
 import ru.otus.java.pro.crm.model.Address;
 import ru.otus.java.pro.crm.model.Client;
 import ru.otus.java.pro.crm.model.Phone;
+import ru.otus.java.pro.crm.service.DBServiceClient;
+import ru.otus.java.pro.crm.service.DbCachedServiceClientImpl;
 import ru.otus.java.pro.crm.service.DbServiceClientImpl;
 
 import java.util.List;
@@ -40,8 +43,13 @@ public class DbServiceDemo {
         ///
         var clientTemplate = new DataTemplateHibernate<>(Client.class);
         ///
-        var dbServiceClient = new DbServiceClientImpl(transactionManager, clientTemplate);
+        var cache = new MyCache<String, Client>();
+        cache.addListener((key, value, action) -> log.info("key:{}, value:{}, action: {}", key, value, action));
 
+        var dbServiceClient = new DbServiceClientImpl(transactionManager, clientTemplate);
+        DBServiceClient serviceClient = new DbCachedServiceClientImpl(dbServiceClient, cache);
+
+        // Добавляем клиентов
         var client1 = new Client(
             "dbServiceFirst",
             new Address("ул. Ленина, 10"),
@@ -50,7 +58,7 @@ public class DbServiceDemo {
                 new Phone("+7 999 444-55-66")
             )
         );
-        var savedClient1 = dbServiceClient.saveClient(client1);
+        var savedClient1 = serviceClient.saveClient(client1);
 
         var client2 = new Client(
             "dbServiceSecond",
@@ -60,9 +68,18 @@ public class DbServiceDemo {
                 new Phone("+7 988 555-44-77")
             )
         );
-        var savedClient2 = dbServiceClient.saveClient(client2);
+        var savedClient2 = serviceClient.saveClient(client2);
 
-        var client2Selected = dbServiceClient
+        // Достаём из кэша первого клиента
+        var client1Selected = serviceClient
+                .getClient(savedClient1.getId())
+                .orElseThrow(
+                        () -> new RuntimeException("Client not found, id:" + savedClient1.getId())
+                );
+        log.info("client1Selected:{}", client1Selected);
+
+        // Достаём из кэша второго клиента
+        var client2Selected = serviceClient
                 .getClient(savedClient2.getId())
                 .orElseThrow(
                     () -> new RuntimeException("Client not found, id:" + savedClient2.getId())
@@ -70,8 +87,8 @@ public class DbServiceDemo {
         log.info("client2Selected:{}", client2Selected);
 
         ///
-        dbServiceClient.saveClient(new Client(client2Selected.getId(), "dbServiceSecondUpdated"));
-        var clientUpdated = dbServiceClient
+        serviceClient.saveClient(new Client(client2Selected.getId(), "dbServiceSecondUpdated"));
+        var clientUpdated = serviceClient
                 .getClient(client2Selected.getId())
                 .orElseThrow(
                     () -> new RuntimeException("Client not found, id:" + client2Selected.getId())
@@ -79,6 +96,6 @@ public class DbServiceDemo {
         log.info("clientUpdated:{}", clientUpdated);
 
         log.info("All clients");
-        dbServiceClient.findAll().forEach(client -> log.info("client:{}", client));
+        serviceClient.findAll().forEach(client -> log.info("client:{}", client));
     }
 }
